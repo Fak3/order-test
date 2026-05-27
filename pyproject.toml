@@ -1,0 +1,15 @@
+[project]
+name = "order-task"
+version = "0.1.0"
+description = "Default template for PDM package"
+authors = [
+    {name = "Evstifeev Roman", email = "someuniquename@gmail.com"},
+]
+dependencies = ["fastapi[standard]>=0.136.3", "pymongo>=4.17.0"]
+requires-python = ">=3.11"
+readme = "README.md"
+license = {text = "MIT"}
+
+
+[tool.pdm]
+distribution = false
