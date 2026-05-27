@@ -1,13 +1,29 @@
 import datetime
+from asyncio import sleep
 from typing import Literal, Any
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, field_validator
 from pymongo import AsyncMongoClient
+
+import httpx
+import tenacity
+
+
+httpxclient = httpx.AsyncClient()
 
 db = AsyncMongoClient("mongodb://localhost:27017/")
 
 app = FastAPI()
+
+
+@app.exception_handler(500)
+async def internal_server_error_handler(request: Request, err: Exception):
+    return JSONResponse(
+        status_code=500,
+        content={"message": "An internal server error occurred", "detail": str(err)},
+    )
 
 
 mock_menu = {
@@ -90,6 +106,22 @@ async def root():
     return {"message": "Hello World"}
 
 
+@tenacity.retry(stop=tenacity.stop_after_attempt(7))
+async def process_payment(checkout: CheckoutSchema):
+    # Emulate failure
+    await sleep(0.1)
+    raise Exception('failed')
+
+    # With the testing stub above, this real http request will never be sent
+    response = await httpxclient.post(
+        'http://example.com',
+        data={'customer': checkout.customerInfo, 'price': 1234}
+    )
+    response.raise_for_status()
+
+    return response
+
+
 @app.post("/checkout")
 async def checkout(checkout: CheckoutSchema):
     order = dict(
@@ -100,6 +132,11 @@ async def checkout(checkout: CheckoutSchema):
 
     # print(order)
     # order_id = (await db.test_database.orders.insert_one(order)).inserted_id
+
+    try:
+        await process_payment(checkout)
+    except tenacity.RetryError as err:
+        raise Exception('Error during processing the payment') from err
 
     return {
       # orderId: order_id,
